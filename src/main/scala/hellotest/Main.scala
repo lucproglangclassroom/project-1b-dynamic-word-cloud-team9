@@ -1,3 +1,4 @@
+package hellotest
 import org.apache.commons.collections4.queue.CircularFifoQueue
 import scala.collection.mutable
 import scala.language.unsafeNulls
