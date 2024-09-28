@@ -1,25 +1,53 @@
 package hellotest
 
-// example straight from scalatest.org
-
-import scala.collection.mutable.Stack
-
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.Suite
-import org.scalatest.matchers.must.Matchers.*
+import org.scalatest.matchers.should.Matchers.*
+import org.apache.commons.collections4.queue.CircularFifoQueue
+import scala.collection.mutable
 
-class StackSpec extends AnyFlatSpec with Suite:
+class MainSpec extends AnyFlatSpec {
 
-  "A Stack" should "pop values in last-in-first-out order" in:
-    val stack = Stack.empty[Int]
-    stack.push(1)
-    stack.push(2)
-    stack.pop() must equal(2)
-    stack.pop() must equal(1)
+  "The word cloud generator" should "correctly count word frequencies" in {
+    val words = Seq("hello", "world", "hello", "scala", "test", "hello", "world")
+    val queue = new CircularFifoQueue[String]
 
-  it should "throw NoSuchElementException if an empty stack is popped" in:
-    val emptyStack = Stack.empty[Int]
-    an[NoSuchElementException] must be thrownBy:
-      emptyStack.pop()
+    words.foreach(queue.add)
 
-end StackSpec
+    val wordCount = mutable.Map[String, Int]()
+    queue.forEach { w =>
+      wordCount(w.nn) = wordCount.getOrElse(w.nn, 0) + 1
+    }
+
+    val sortedWords = wordCount.toSeq.sortBy { case (word, count) => (-count, word) }
+    val topWords = sortedWords.take(3)
+
+    topWords should contain theSameElementsAs Seq(("hello", 3), ("world", 2))
+  }
+
+  it should "ignore words shorter than the specified length" in {
+    val words = Seq("hi", "there", "hello", "world")
+    val queue = new CircularFifoQueue[String]
+
+    words.foreach(queue.add)
+
+    val wordCount = mutable.Map[String, Int]()
+    queue.forEach { w =>
+      if (w.nn.length >= 5) {
+        wordCount(w.nn) = wordCount.getOrElse(w.nn, 0) + 1
+      }
+    }
+
+    wordCount shouldBe Map("hello" -> 1, "world" -> 1)
+  }
+
+  it should "handle empty input gracefully" in {
+    val queue = new CircularFifoQueue[String]
+    val wordCount = mutable.Map[String, Int]()
+
+    queue.forEach { w =>
+      wordCount(w.nn) = wordCount.getOrElse(w.nn, 0) + 1
+    }
+
+    wordCount shouldBe empty
+  }
+}
