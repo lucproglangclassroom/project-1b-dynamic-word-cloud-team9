@@ -21,7 +21,7 @@ class MainSpec extends AnyFlatSpec {
     val sortedWords = wordCount.toSeq.sortBy { case (word, count) => (-count, word) }
     val topWords = sortedWords.take(3)
 
-    topWords should contain theSameElementsAs Seq(("hello", 3), ("world", 2))
+    topWords should contain theSameElementsAs Seq(("hello", 3), ("world", 2), ("scala", 1))
   }
 
   it should "ignore words shorter than the specified length" in {
@@ -37,7 +37,7 @@ class MainSpec extends AnyFlatSpec {
       }
     }
 
-    wordCount shouldBe Map("hello" -> 1, "world" -> 1)
+    wordCount shouldBe Map("world" -> 1, "there" -> 1, "hello" -> 1)
   }
 
   it should "handle empty input gracefully" in {
