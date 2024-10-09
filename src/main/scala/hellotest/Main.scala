@@ -4,25 +4,16 @@ import scala.collection.mutable
 import scala.language.unsafeNulls
 import scala.io.Source
 
-object Main:
+// the ArgumentParser trait handles argument validation
+trait ArgumentParser {
+  val DEFAULT_CLOUD_SIZE = 10
+  val DEFAULT_LENGTH_AT_LEAST = 6
+  val DEFAULT_WINDOW_SIZE = 1000
 
-  // Default values for arguments
-  val CLOUD_SIZE = 10
-  val LENGTH_AT_LEAST = 6
-  val WINDOW_SIZE = 1000
-
-  def main(args: Array[String]) = 
-
-    // Argument validity checking
-    if (args.length > 3) {
-      System.err.nn.println("usage: ./target/universal/stage/bin/main [cloud-size] [length-at-least] [window-size]")
-      System.exit(2)
-    }
-
-    // Parse the command-line argument or use the default value
-    var cloud_size = CLOUD_SIZE
-    var length_at_least = LENGTH_AT_LEAST
-    var window_size = WINDOW_SIZE
+  def parseArguments(args: Array[String]): (Int, Int, Int) = {
+    var cloud_size = DEFAULT_CLOUD_SIZE
+    var length_at_least = DEFAULT_LENGTH_AT_LEAST
+    var window_size = DEFAULT_WINDOW_SIZE
 
     try {
       if (args.length >= 1) {
@@ -43,34 +34,70 @@ object Main:
         System.exit(4)
     }
 
-    // Set up input from stdin and process words
-    val lines = scala.io.Source.stdin.getLines
-    val words = lines.flatMap(l => l.split("(?U)[^\\p{Alpha}0-9']+")).map(_.toLowerCase)
+    (cloud_size, length_at_least, window_size)
+  }
+}
 
-    // Circular buffer to hold the most recent words
-    val queue = new CircularFifoQueue[String](window_size)
+// the InputProcessor trait handles splitting lines into words and applying filters
+trait InputProcessor {
+  def processInput(lines: Iterator[String], lengthAtLeast: Int): Iterator[String] = {
+    lines
+      .flatMap(_.split("(?U)[^\\p{Alpha}0-9']+"))
+      .map(_.toLowerCase)
+      .filter(_.length >= lengthAtLeast)
+  }
+}
 
-    // Process words and update word cloud
-    words.filter(_.length >= length_at_least).foreach { word =>
-      queue.add(word) // Add word to the queue
+// the QueueManager trait handles the circular buffer (FIFO queue) logic
+trait QueueManager {
+  def manageQueue(queue: CircularFifoQueue[String], word: String): Unit = {
+    queue.add(word) // Adds the word to the circular buffer
+  }
 
-      // Only start processing once the queue is filled with `window_size` words
-      if (queue.size == window_size) {
-        // Compute word frequencies
-        val wordCount = mutable.Map[String, Int]()
-        queue.forEach { w =>
-          wordCount(w) = wordCount.getOrElse(w, 0) + 1
-        }
+  def isQueueFull(queue: CircularFifoQueue[String], windowSize: Int): Boolean = {
+    queue.size == windowSize
+  }
+}
 
-        // Sort by frequency (descending) and alphabetically in case of ties
-        val sortedWords = wordCount.toSeq.sortBy { case (word, count) => (-count, word) }
-
-        // Take the top `cloud_size` words
-        val topWords = sortedWords.take(cloud_size)
-
-        // Print the word cloud in the required format
-        println(topWords.map { case (word, count) => s"$word: $count" }.mkString(" "))
-      }
+// the WordCloudGenerator trait handles word frequency calculation and printing
+trait WordCloudGenerator {
+  def generateWordCloud(queue: CircularFifoQueue[String], cloudSize: Int): Unit = {
+    val wordCount = mutable.Map[String, Int]()
+    queue.forEach { w =>
+      wordCount(w) = wordCount.getOrElse(w, 0) + 1
     }
 
-end Main
+    val sortedWords = wordCount.toSeq.sortBy { case (word, count) => (-count, word) }
+    val topWords = sortedWords.take(cloudSize)
+
+    println(topWords.map { case (word, count) => s"$word: $count" }.mkString(" "))
+  }
+}
+
+// Main object that combines the traits
+object Main extends ArgumentParser with InputProcessor with QueueManager with WordCloudGenerator {
+  def main(args: Array[String]): Unit = {
+    if (args.length > 3) {
+      Console.err.println("usage: ./target/universal/stage/bin/main [cloud-size] [length-at-least] [window-size]")
+      System.exit(2)
+    }
+
+    // parses arguments
+    val (cloudSize, lengthAtLeast, windowSize) = parseArguments(args)
+
+    // Input processing
+    val lines = scala.io.Source.stdin.getLines
+    val words = processInput(lines, lengthAtLeast)
+
+    // the queue management
+    val queue = new CircularFifoQueue[String](windowSize)
+
+    // processes words and generate word cloud
+    words.foreach { word =>
+      manageQueue(queue, word)
+      if (isQueueFull(queue, windowSize)) {
+        generateWordCloud(queue, cloudSize)
+      }
+    }
+  }
+}
