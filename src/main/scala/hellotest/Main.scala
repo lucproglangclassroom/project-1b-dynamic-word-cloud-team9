@@ -1,8 +1,7 @@
 package hellotest
-import org.apache.commons.collections4.queue.CircularFifoQueue
-import scala.collection.mutable
-import scala.language.unsafeNulls
+
 import scala.io.Source
+import scala.annotation.tailrec
 
 object Main:
 
@@ -11,66 +10,72 @@ object Main:
   val LENGTH_AT_LEAST = 6
   val WINDOW_SIZE = 1000
 
-  def main(args: Array[String]) = 
+  def main(args: Array[String]): Unit =
 
-    // Argument validity checking
-    if (args.length > 3) {
-      System.err.nn.println("usage: ./target/universal/stage/bin/main [cloud-size] [length-at-least] [window-size]")
-      System.exit(2)
-    }
+    // Parse command-line arguments or use defaults
+    val (cloudSize, lengthAtLeast, windowSize) = parseArgs(args)
 
-    // Parse the command-line argument or use the default value
-    var cloud_size = CLOUD_SIZE
-    var length_at_least = LENGTH_AT_LEAST
-    var window_size = WINDOW_SIZE
+    // Read lines from stdin, split into words, and filter by length
+    val words = Source.stdin.getLines.flatMap(tokenize).filter(_.length >= lengthAtLeast)
 
-    try {
-      if (args.length >= 1) {
-        cloud_size = args(0).toInt
-        if (cloud_size < 1) throw new NumberFormatException()
-      }
-      if (args.length >= 2) {
-        length_at_least = args(1).toInt
-        if (length_at_least < 1) throw new NumberFormatException()
-      }
-      if (args.length == 3) {
-        window_size = args(2).toInt
-        if (window_size < 1) throw new NumberFormatException()
-      }
-    } catch {
-      case _: NumberFormatException =>
-        Console.err.println("The arguments should be natural numbers")
-        System.exit(4)
-    }
+    // Process words in sliding windows and generate word clouds
+    processWords(words, windowSize, cloudSize)
 
-    // Set up input from stdin and process words
-    val lines = scala.io.Source.stdin.getLines
-    val words = lines.flatMap(l => l.split("(?U)[^\\p{Alpha}0-9']+")).map(_.toLowerCase)
+  // Parse command-line arguments with default fallbacks
+  def parseArgs(args: Array[String]): (Int, Int, Int) =
+    if args.length > 3 then
+      Console.err.println("usage: ./target/universal/stage/bin/main [cloud-size] [length-at-least] [window-size]")
+      sys.exit(2)
+    
+    val cloudSize = if args.length >= 1 then args(0).toIntOption.getOrElse(CLOUD_SIZE) else CLOUD_SIZE
+    val lengthAtLeast = if args.length >= 2 then args(1).toIntOption.getOrElse(LENGTH_AT_LEAST) else LENGTH_AT_LEAST
+    val windowSize = if args.length == 3 then args(2).toIntOption.getOrElse(WINDOW_SIZE) else WINDOW_SIZE
 
-    // Circular buffer to hold the most recent words
-    val queue = new CircularFifoQueue[String](window_size)
+    (cloudSize, lengthAtLeast, windowSize)
 
-    // Process words and update word cloud
-    words.filter(_.length >= length_at_least).foreach { word =>
-      queue.add(word) // Add word to the queue
+  // Tokenize the line into words using regex, only keeping alphanumeric characters and apostrophes
+  def tokenize(line: String): List[String] =
+    @tailrec
+    def tokenizeAcc(remaining: List[Char], currentWord: List[Char], acc: List[String]): List[String] =
+      remaining match
+        case Nil if currentWord.isEmpty => acc
+        case Nil => currentWord.reverse.mkString :: acc
+        case c :: cs if c.isLetterOrDigit || c == '\'' =>
+          tokenizeAcc(cs, c.toLower :: currentWord, acc)
+        case _ :: cs if currentWord.isEmpty =>
+          tokenizeAcc(cs, List(), acc)
+        case _ :: cs =>
+          tokenizeAcc(cs, List(), currentWord.reverse.mkString :: acc)
 
-      // Only start processing once the queue is filled with `window_size` words
-      if (queue.size == window_size) {
-        // Compute word frequencies
-        val wordCount = mutable.Map[String, Int]()
-        queue.forEach { w =>
-          wordCount(w) = wordCount.getOrElse(w, 0) + 1
-        }
+    tokenizeAcc(line.toList, List(), List()).reverse
 
-        // Sort by frequency (descending) and alphabetically in case of ties
-        val sortedWords = wordCount.toSeq.sortBy { case (word, count) => (-count, word) }
+    
+  // Process the words by sliding a window and printing word clouds
+  @tailrec
+  def processWords(words: Iterator[String], windowSize: Int, cloudSize: Int, window: List[String] = List.empty): Unit =
+    if words.hasNext then
+      val nextWord = words.next()
+      val updatedWindow = (nextWord :: window).take(windowSize)
+      
+      if updatedWindow.size == windowSize then
+        val wordCloud = generateWordCloud(updatedWindow, cloudSize)
+        printWordCloud(wordCloud)
+      
+      processWords(words, windowSize, cloudSize, updatedWindow)
+    else
+      ()
 
-        // Take the top `cloud_size` words
-        val topWords = sortedWords.take(cloud_size)
+  // Generate a word cloud (sorted by frequency and alphabetically) for the given window of words
+  def generateWordCloud(window: List[String], cloudSize: Int): List[(String, Int)] =
+    window
+      .groupBy(identity)
+      .view.mapValues(_.size)
+      .toList
+      .sortBy { case (word, count) => (-count, word) }
+      .take(cloudSize)
 
-        // Print the word cloud in the required format
-        println(topWords.map { case (word, count) => s"$word: $count" }.mkString(" "))
-      }
-    }
+  // Print the word cloud in the desired format
+  def printWordCloud(wordCloud: List[(String, Int)]): Unit =
+    println(wordCloud.map { case (word, count) => s"$word: $count" }.mkString(" "))
 
 end Main

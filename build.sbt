@@ -22,3 +22,4 @@ fork in Test := true
 testFrameworks += new TestFramework("org.scalatest.tools.Framework")
 
 compile / javacOptions += "-Xlint:all"
+
