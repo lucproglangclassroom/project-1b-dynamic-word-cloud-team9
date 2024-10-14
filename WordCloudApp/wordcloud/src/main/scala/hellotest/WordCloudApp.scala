@@ -11,7 +11,7 @@ object WordCloudApp extends JFXApp3 {
   // Default parameters
   val CLOUD_SIZE = 10
   val LENGTH_AT_LEAST = 6
-  val WINDOW_SIZE = 1000
+  val WINDOW_SIZE = 7
   val UPDATE_STEPS = 1
   val MIN_FREQUENCY = 1
 
