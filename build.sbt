@@ -12,7 +12,9 @@ libraryDependencies ++= Seq(
   "org.apache.commons" % "commons-collections4" % "4.4",
   "net.aichler" % "jupiter-interface" % "0.11.1" % Test,
   "net.jqwik" % "jqwik" % "1.9.0" % Test,
-  "org.junit.jupiter" % "junit-jupiter-api" % "5.8.2" % Test
+  "org.junit.jupiter" % "junit-jupiter-api" % "5.8.2" % Test,
+  "org.scalafx" %% "scalafx" % "16.0.0-RC1" // Check for the latest version
+
 )
 
 enablePlugins(JavaAppPackaging)
